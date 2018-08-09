@@ -10,6 +10,29 @@ import re
 import json
 from hparams import hparams
 import time
+import os, numpy, argparse, random, time
+import multiprocessing
+
+
+
+with open('./datasets/character_list.json', 'r') as f:
+    _characters = json.load(f)
+with open('./datasets/phone_list.json', 'r') as f:
+    _phones = json.load(f)
+
+_pad = '_'
+_eos = '~'
+
+symbols = [_pad, _eos] + _characters
+_symbol_to_id = {s: i for i, s in enumerate(symbols)}
+_id_to_symbol = {i: s for i, s in enumerate(symbols)}
+
+phone_symbols = [_pad, _eos] + _phones
+
+_phone_symbol_to_id = {s: i for i, s in enumerate(phone_symbols)}
+_id_to_phone_symbol = {i: s for i, s in enumerate(phone_symbols)}
+
+
 
 #generate the int
 def _int64_feature(value):
@@ -40,48 +63,28 @@ def _round_up(x, multiple):
     return x if remainder == 0 else x + multiple - remainder
 
 
-def _process_utterance(wav_path, seq, writer):
+def _process_utterance(wav_path, seq, id):
     '''Preprocesses a single utterance audio/text pair.
-
     This writes the mel and linear scale spectrograms to disk and returns a tuple to write
     to the train.txt file.
-
     Args:
-      out_dir: The directory to write the spectrograms into
-      index: The numeric index to use in the spectrogram filenames.
       wav_path: Path to the audio file containing the speech input
-      text: The text spoken in the input audio file
-
+      seq: The text spoken in the input audio file
+      id : identity
     Returns:
-      A (spectrogram_filename, mel_filename, n_frames, text) tuple to write to train.txt
+      A example containing many datas
     '''
-
     # Load the audio to a numpy array:
     wav = audio.load_wav(wav_path)
-
     # Compute the linear-scale spectrogram from the wav:
     spectrogram = audio.spectrogram(wav).astype(np.float32).T
-
-
     # Compute a mel-scale spectrogram from the wav:
     mel_spectrogram = audio.melspectrogram(wav).astype(np.float32).T
+    mel_spectrogram = _prepare_targets(mel_spectrogram, hparams.outputs_per_step)
+    spectrogram = _prepare_targets(spectrogram, hparams.outputs_per_step)
 
-
-
-    mel_spectrogram = _prepare_targets(mel_spectrogram, hparams.outputs_per_step*2)
-    spectrogram = _prepare_targets(spectrogram, hparams.outputs_per_step*2)
-
-
-    '''
-    spec_raw = spectrogram.tostring()
-    mel_raw = mel_spectrogram.tostring()
-    seq_raw = seq.tostring()
-    wav_raw = wav.tostring()
-    '''
     input_lengths = len(seq)
     n_frames = spectrogram.shape[0]
-
-
     input_features = [tf.train.Feature(int64_list=tf.train.Int64List(value=[input_])) for input_ in seq]
     mel_features = [tf.train.Feature(float_list=tf.train.FloatList(value=input_)) for input_ in mel_spectrogram]
     spec_features = [tf.train.Feature(float_list=tf.train.FloatList(value=input_)) for input_ in spectrogram]
@@ -93,106 +96,106 @@ def _process_utterance(wav_path, seq, writer):
         'wav': tf.train.FeatureList(feature=wav_feature),
     }
     feature_lists = tf.train.FeatureLists(feature_list=feature_list)
-
     n_frame_ = tf.train.Feature(int64_list=tf.train.Int64List(value=[n_frames]))
     input_lengths_ = tf.train.Feature(int64_list=tf.train.Int64List(value=[input_lengths]))
+    identity_ = tf.train.Feature(int64_list=tf.train.Int64List(value=[int(id)]))
     context = tf.train.Features(feature={
         "n_frame": n_frame_,
         "input_lengths": input_lengths_,
+        "identity":identity_
     })
-
     example = tf.train.SequenceExample(context=context, feature_lists=feature_lists)
+    #print('example')
+    #print(example)
+    # Return a tuple describing this training example:
+    return example
+
+
+
+def write_worker(q_out, tfrecord_file):
+    pre_time = time.time()
+    count = 1
+    writer = tf.python_io.TFRecordWriter(tfrecord_file)
+    while True:
+        deq = q_out.get()
+        if deq is None:
+            break
+        serial = deq
+        writer.write(serial.SerializeToString())
+        if count % 100 == 0:
+            cur_time = time.time()
+            print('time:', cur_time - pre_time, 'count:', count)
+            pre_time = cur_time
+        count += 1
+
+
+def audio_encoder(item, q_out):
+
+    wav_root = item[0]
+
+    content = item[1]
+    seq = _symbols_to_sequence(content)
+    seq = np.asarray(seq)
+
+    id = item[2]
+
+    example = _process_utterance(wav_root, seq, id)
+    q_out.put(example)
+
+
+def read_worker(q_in, q_out):
+    while True:
+        item = q_in.get()
+        if item is None:
+            break
+        audio_encoder(item, q_out)
+
+def wav_to_tfrecord_read_from_text(args, text_path, data_name, id_num):
+
+    tfrecord_dir = os.path.join(args.output, "tfrecord_tacotron_" + data_name)
+    os.makedirs(tfrecord_dir, exist_ok=True)
+    tfrecord_file = os.path.join(tfrecord_dir, 'tfrecord_tacotron_' + data_name +
+                                 '_outputsperstep_' + str(hparams.outputs_per_step) +
+                                 '_id_num_' + str(id_num) + '.tfrecord')
+
+    q_in = [multiprocessing.Queue(1024) for i in range(args.num_workers)]  # num_thread  default = 32
+    q_out = multiprocessing.Queue(1024)
+
+    read_process = [multiprocessing.Process(target=read_worker, args=(q_in[i], q_out)) for i in range(args.num_workers)]
+
+    for p in read_process:
+        p.start()
+    write_process = multiprocessing.Process(target=write_worker, args=(q_out, tfrecord_file))
+    write_process.start()
+
+    with open(text_path, 'r') as f:
+        ct = 0
+        for line in f:
+            line = eval(line)
+            q_in[ct % len(q_in)].put(line)
+            ct += 1
+
+    for q in q_in:
+        q.put(None)
+    for p in read_process:
+        p.join()
+    q_out.put(None)
+    write_process.join()
 
 
 
 
 
 
-    '''
-    example = tf.train.Example(features=tf.train.Features(feature={
-        'inputs': _bytes_feature(seq_raw),
-        'input_lengths': _int64_feature(input_lengths),
-        'spec': _bytes_feature(spec_raw),
-        'mel': _bytes_feature(mel_raw),
-        'n_frame': _int64_feature(n_frames),
-        'wav': _bytes_feature(wav_raw),
-    }))
-    '''
-
-
-    writer.write(example.SerializeToString())
-
-  # Return a tuple describing this training example:
-    return None
-
-
-def write_to_tfrecord(item, tfrecord_dir):
-    #tfrecord output dir
-    filename = os.path.join(tfrecord_dir, "tfrecord_all_novel_data_" + item + "_padlength" + str(hparams.outputs_per_step*2) + ".tfrecords")
-    #generate a writer
-    writer = tf.python_io.TFRecordWriter(filename)
-    #for item in os.listdir('/home/pattern/songjinming/tts/data/all_novel_data/id_separate'):
-
-    in_dir = os.path.join('/home/pattern/songjinming/tts/data/all_novel_data/id_separate', item)
-
-    wav_path = os.path.join(in_dir, 'wav')
-    stm_path = os.path.join(in_dir, 'stm')
-
-    for wav_file in os.listdir(wav_path):
-        name_file = os.path.splitext(wav_file)[0]
-        if not os.path.splitext(wav_file)[1] == '.wav':
-            continue
-        txt_file = '.'.join([name_file, 'stm'])
-        wav_root = os.path.join(wav_path, wav_file)
-        txt_root = os.path.join(stm_path, txt_file)
-
-        with open(txt_root, 'r') as f:
-            content = f.read()
-
-        content = _curly_re.match(content)
-        content = content.group(3)
-        content = content.split(' ')
-        content = ''.join(content)
-        seq = _symbols_to_sequence(content)
-        seq = np.asarray(seq)
-        #print(seq)
-
-        #futures.append(executor.submit(partial(_process_utterance, wav_root, seq, writer)))
-        tmp = _process_utterance(wav_root, seq, writer)
-
-    #tmp = [future.result() for future in tqdm(futures)]
-
-    writer.close()
 
 
 
-_pad        = '_'
-_eos        = '~'
-_curly_re = re.compile(r'(.*?)(<.+?>)(.*)')
 
-with open('/home/pattern/songjinming/tts/tw_tacotron_wavenet/datasets/character_list.json', 'r') as f:
-    _characters = json.load(f)
 
-symbols = [_pad, _eos] + _characters
-_symbol_to_id = {s: i for i, s in enumerate(symbols)}
-_id_to_symbol = {i: s for i, s in enumerate(symbols)}
 
-raw_data_path = '/home/pattern/songjinming/tts/data/all_novel_data/id_separate'
-tfrecord_dir = "../tfrecord_data/"
 
-os.makedirs(tfrecord_dir, exist_ok=True)
-executor = ProcessPoolExecutor(max_workers=30)
-futures = []
 
-dir_names = []
-already_exist = os.listdir(raw_data_path)
 
-for item in os.listdir(raw_data_path):
-    if item[0] == '1':
-        #continue
-        futures.append(executor.submit(partial(write_to_tfrecord, item, tfrecord_dir)))
-
-[future.result() for future in futures]
 
 
 
