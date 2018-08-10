@@ -22,7 +22,7 @@ hparams = tf.contrib.training.HParams(
     outputs_per_step=5,
 
     # Training:
-    batch_size=110,
+    batch_size=64,
     adam_beta1=0.9,
     adam_beta2=0.999,
     initial_learning_rate=0.0005,#0.002
@@ -34,9 +34,12 @@ hparams = tf.contrib.training.HParams(
     griffin_lim_iters=100,
     power=1.5,                            # Power to raise magnitudes to prior to Griffin-Lim
 
+    #data process
+    output='/hdd1',        #tfrecord存放处
+
     # network settings
     embedding_text_channels=256,
-    embedding_id_channels=256,
+    embedding_id_channels=64,
 
 )
 

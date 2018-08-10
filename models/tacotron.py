@@ -35,28 +35,8 @@ class Tacotron():
         with tf.variable_scope('inference') as scope:
             is_training = linear_targets is not None
             batch_size = tf.shape(inputs)[0]
-            #batch_size = self._hparams.batch_size
-            '''
-            print(type(inputs))
-            print(inputs)
-            print(inputs.shape)
-            print(type(inputs.shape))
-            inputs = tf.squeeze(inputs, [2])
-            inputs = tf.squeeze(input_lengths, [1])
-            print(type(inputs))
-            print(inputs)
-            print(inputs.shape)
-            print('mel_targets')
-            print(type(mel_targets))
-            print(mel_targets)
-            print(mel_targets.shape)
-            #self.mel_len = tf.shape(mel_targets)[1]
-            '''
-            hp = self._hparams
-
+            hp = self._hparam
             # Embeddings
-
-
             embedding_num = len(symbols2)
             print('embedding_num')
             print(embedding_num)
@@ -67,15 +47,14 @@ class Tacotron():
 
             embedded_text_inputs = tf.nn.embedding_lookup(embedding_text_table, inputs)  # [N, T_in, 256]
 
-            
             if identity is not None:
                 embedding_id_table = tf.get_variable('embedding_id', [id_num, hp.embedding_id_channels],
                                                      dtype=tf.float32,
                                                      initializer=tf.truncated_normal_initializer(stddev=0.5))
-                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identity)
-                embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)
-                embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1], name=None)
-                embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 1)
+                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identity) # [N, 32]
+                embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)                  # [N, 1, 32]
+                embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1], name=None) # [N, T_in, 32]
+                embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 2) # [N, T_in, 288]
             else:
                 embedded_inputs = embedded_text_inputs
 
@@ -124,46 +103,25 @@ class Tacotron():
             # Grab alignments from the final decoder state:
             alignments = tf.transpose(final_decoder_state[0].alignment_history.stack(), [1, 2, 0])
 
-            #print('alignments[0]')
-            #print(alignments[5])
             self.inputs = inputs
             self.input_lengths = input_lengths
             self.mel_outputs = mel_outputs
             self.linear_outputs = linear_outputs
             self.alignments = alignments
             self.identity = identity
-            #self.alignments2 = tf.argmax(alignments, axis=1)
-            #self.alignments3 = tf.contrib.crf.viterbi_decode(alignments, )
-            '''
-            print('----------------------------------------------')
-            print('self.alignments')
-            print(self.alignments)
-            print('----------------------------------------------')
-            print('final_decoder_state[0].alignment_history.stack()')
-            print(final_decoder_state[0].alignment_history.stack())
-            print('----------------------------------------------')
-            print('final_decoder_state[0].alignment_history')
-            print(final_decoder_state[0].alignment_history)
-            print('----------------------------------------------')
-            print('final_decoder_state[0]')
-            print(final_decoder_state[0])
-
-            time.sleep(1000)
-            '''
-
             self.mel_targets = mel_targets
             self.linear_targets = linear_targets
             log('Initialized Tacotron model. Dimensions: ')
-            log('    embedding:                             %d' % embedded_inputs.shape[-1])
-            log('    prenet out:                            %d' % prenet_outputs.shape[-1])
-            log('    encoder out:                         %d' % encoder_outputs.shape[-1])
-            log('    attention out:                     %d' % attention_cell.output_size)
-            log('    concat attn & out:             %d' % concat_cell.output_size)
-            log('    decoder cell out:                %d' % decoder_cell.output_size)
-            log('    decoder out (%d frames):    %d' % (hp.outputs_per_step, decoder_outputs.shape[-1]))
+            log('    embedding:                 %d' % embedded_inputs.shape[-1])
+            log('    prenet out:                %d' % prenet_outputs.shape[-1])
+            log('    encoder out:               %d' % encoder_outputs.shape[-1])
+            log('    attention out:             %d' % attention_cell.output_size)
+            log('    concat attn & out:         %d' % concat_cell.output_size)
+            log('    decoder cell out:          %d' % decoder_cell.output_size)
+            log('    decoder out (%d frames):   %d' % (hp.outputs_per_step, decoder_outputs.shape[-1]))
             log('    decoder out (1 frame):     %d' % mel_outputs.shape[-1])
-            log('    postnet out:                         %d' % post_outputs.shape[-1])
-            log('    linear out:                            %d' % linear_outputs.shape[-1])
+            log('    postnet out:               %d' % post_outputs.shape[-1])
+            log('    linear out:                %d' % linear_outputs.shape[-1])
 
 
     def add_loss(self):

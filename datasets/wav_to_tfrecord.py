@@ -105,9 +105,6 @@ def _process_utterance(wav_path, seq, id):
         "identity":identity_
     })
     example = tf.train.SequenceExample(context=context, feature_lists=feature_lists)
-    #print('example')
-    #print(example)
-    # Return a tuple describing this training example:
     return example
 
 
@@ -130,15 +127,11 @@ def write_worker(q_out, tfrecord_file):
 
 
 def audio_encoder(item, q_out):
-
     wav_root = item[0]
-
     content = item[1]
     seq = _symbols_to_sequence(content)
     seq = np.asarray(seq)
-
     id = item[2]
-
     example = _process_utterance(wav_root, seq, id)
     q_out.put(example)
 
@@ -151,7 +144,6 @@ def read_worker(q_in, q_out):
         audio_encoder(item, q_out)
 
 def wav_to_tfrecord_read_from_text(args, text_path, data_name, id_num):
-
     tfrecord_dir = os.path.join(args.output, "tfrecord_tacotron_" + data_name)
     os.makedirs(tfrecord_dir, exist_ok=True)
     tfrecord_file = os.path.join(tfrecord_dir, 'tfrecord_tacotron_' + data_name +
@@ -160,35 +152,31 @@ def wav_to_tfrecord_read_from_text(args, text_path, data_name, id_num):
 
     q_in = [multiprocessing.Queue(1024) for i in range(args.num_workers)]  # num_thread  default = 32
     q_out = multiprocessing.Queue(1024)
-
     read_process = [multiprocessing.Process(target=read_worker, args=(q_in[i], q_out)) for i in range(args.num_workers)]
-
     for p in read_process:
         p.start()
     write_process = multiprocessing.Process(target=write_worker, args=(q_out, tfrecord_file))
     write_process.start()
-
     with open(text_path, 'r') as f:
         ct = 0
         for line in f:
             line = eval(line)
             q_in[ct % len(q_in)].put(line)
             ct += 1
-
     for q in q_in:
         q.put(None)
     for p in read_process:
         p.join()
     q_out.put(None)
     write_process.join()
-
-
-
-
-
-
-
-
+    try:
+        with open('./train_data_dict.json', 'r') as f:
+            train_data_dict = json.load(f)
+    except:
+        train_data_dict = {}
+    train_data_dict[data_name] = tfrecord_file
+    with open('./train_data_dict.json', 'w') as f:
+        json.dump(train_data_dict, f)
 
 
 

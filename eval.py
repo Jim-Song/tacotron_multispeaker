@@ -40,7 +40,6 @@ sentences = ['习近平多次强调',
   '''
 
 
-
 def get_output_base_path(checkpoint_path):
   base_dir = os.path.dirname(checkpoint_path)
   m = re.compile(r'.*?\.ckpt\-([0-9]+)').match(checkpoint_path)
@@ -57,8 +56,6 @@ def run_eval(args):
     path = '%s-%d.wav' % (base_path, i)
     path_alignment = '%s-%d.png' % (base_path, i)
     print('Synthesizing: %s' % path)
-    #with open(path, 'wb') as f:
-    #  f.write(synth.synthesize(text))
     synth.synthesize(text, path, path_alignment)
 
 

@@ -54,20 +54,8 @@ class DataFeeder():
             self.identity = tf.to_int32(context["identity"])
             self.input_lengths = tf.cast(context['input_lengths'], tf.int64)
             self.linear_targets = feat_list['spec']#tf.decode_raw(features['spec'], tf.float32)
-            #self.linear_targets = tf.transpose(self.linear_targets)
-            #self.linear_targets.set_shape([None, self.hp.num_mels])
             self.mel_targets = feat_list['mel']#tf.decode_raw(features['mel'], tf.float32)
-            #mel_length = tf.shape(self.mel_targets)[0]
-            #pad_len = tf.mod(5, 2)
-            #pad_len = tf.add(5, 2)
-            #pad_len = 10
-            #paddings = tf.get_variable('asdf', initializer=[[0, pad_len], [0, 0]])
-            #self.mel_targets = tf.pad(self.mel_targets,  [[0, 6], [0, 0]], "CONSTANT")
-            #self.linear_targets = tf.pad(self.linear_targets, [[0, 6], [0, 0]], "CONSTANT")
 
-            #self.mel_targets = tf.pad(self.mel_targets, [[0, 0], [0, pad_len]], "CONSTANT")
-            #self.mel_targets = tf.transpose(self.mel_targets)
-            #self.mel_targets.set_shape([None, self.hp.num_mels])
 
             self.wav = feat_list['wav']#tf.decode_raw(features['wav'], tf.float32)
             self.n_frame = tf.shape(self.inputs)[0]
@@ -80,11 +68,6 @@ class DataFeeder():
                 [self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav, self.identity],
                 self.hp.batch_size, bucket_boundaries, capacity=30, dynamic_pad=True, num_threads=25)
 
-            #input_tensors = [self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav]
-            #self.__batch_tensors = tf.train.batch(input_tensors, batch_size=self.hp.batch_size, capacity=100,
-            #                                         num_threads=10, dynamic_pad=True,
-            #                                         allow_smaller_final_batch=False)
-
     def _get_batch_input(self):
         """返回一组训练数据输入.
 
@@ -94,39 +77,6 @@ class DataFeeder():
         inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = \
             tuple(self.__batch_tensors)
         return inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity
-
-
-'''
-    def read_and_decode(self, filename_queue):
-      reader = tf.TFRecordReader()
-      _, serialized_example = reader.read(filename_queue)
-      features = tf.parse_single_example(
-          serialized_example,
-          features={
-              'data': tf.FixedLenFeature([], tf.string),
-              'label': tf.FixedLenFeature([], tf.int64)
-          }
-      )
-      data = tf.decode_raw(features['data'], tf.float64)
-      data = tf.cast(data, tf.float32)
-      data = tf.reshape(data, [500,64,1])
-
-      label = tf.cast(features['label'], tf.int64)
-
-      return data, label
-
-    def input(self, filename, batch_size):
-      with tf.name_scope('input'):
-        filename_queue = tf.train.string_input_producer([filename])
-        image,label = read_and_decode(filename_queue)
-        #print image._shape, label._shape
-        images,labels = tf.train.batch([image,label],batch_size = batch_size,num_threads=16,
-                                                 capacity=10+3*batch_size)#, min_after_dequeue=10)
-      return images,labels
-'''
-
-
-
 
 
 def _shuffle_inputs(input_tensors, capacity, min_after_dequeue, num_threads):
@@ -143,7 +93,6 @@ def _shuffle_inputs(input_tensors, capacity, min_after_dequeue, num_threads):
         output_tensors[i].set_shape(input_tensors[i].shape)
 
     return output_tensors
-
 
 
 

@@ -68,9 +68,8 @@ def train(log_dir, args):
         # Set up DataFeeder:
         coord = tf.train.Coordinator()
 
-        train_data_dict = {
-            'THCHS': '/hdd1/tfrecord_tacotron_THCHS/tfrecord_tacotron_THCHS_outputsperstep_5_id_num_60.tfrecord',
-            'aishell': '/hdd1/tfrecord_tacotron_aishell/tfrecord_tacotron_aishell_outputsperstep_5_id_num_400.tfrecord'}
+        with open('./train_data_dict.json', 'r') as f:
+            train_data_dict = json.load(f)
 
         train_data = args.train_data.split(',')
         file_list = []
@@ -79,12 +78,10 @@ def train(log_dir, args):
         for item in train_data:
             file_list.append(train_data_dict[item])
             id_num += int( re.findall(pattern, train_data_dict[item])[0] )
+        log('train data:%s' % args.train_data)
 
         feeder = DataFeeder(hparams, file_list)
         inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
-        #'''
-
-
 
         # Set up model:
         global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -100,15 +97,9 @@ def train(log_dir, args):
                                              linear_targets=linear_targets, identity=identity, id_num=id_num)
                         models[i].add_loss()
                         models[i].add_optimizer(global_step)
-
                         stats = add_stats(models[i])
-
                         #tf.get_variable_scope().reuse_variables()
                         print(tf.get_variable_scope())
-                        
-
-
-
 
         # Bookkeeping:
         step = 0
@@ -135,29 +126,12 @@ def train(log_dir, args):
 
                 tf.train.start_queue_runners(sess=sess)
 
-                #feeder.start_in_session(sess)
                 while not coord.should_stop():
-
-
                     start_time = time.time()
                     loss_w = None
-                    """
-                    step, input, mel_spec, linear_outputs = sess.run([global_step, inputs, mel_targets, linear_targets])
-                    print('----------------------------------------------------------------------------------')
-                    print(input)
-                    print(input.shape)
-                    print(mel_spec)
-                    print(mel_spec.shape)
-                    print(linear_outputs)
-                    print(linear_outputs.shape)
 
-                    """
-                    #"""
                     step, loss, opt, inputs2 = sess.run([global_step, models[0].loss, models[0].optimize, inputs])
-                    #for item in inputs2:
-                    #    print(item)
-                    #    log('Input: %s' % sequence_to_text(item))
-                    #print(framess)
+
                     time_window.append(time.time() - start_time)
                     loss_window.append(loss)
                     message = 'Step %-7d [%.03f avg_sec/step,    loss=%.05f, avg_loss=%.05f, lossw=%.05f]' % (
@@ -172,16 +146,11 @@ def train(log_dir, args):
                         saver.restore(sess, restore_path)
                         continue
 
-                    #if loss > 100 or math.isnan(loss):
-                    #    log('Loss exploded to %.05f at step %d!' % (loss, step), slack=True)
-                    #    raise Exception('Loss Exploded')
-
                     if step % args.summary_interval == 0:
                         log('Writing summary at step: %d' % step)
                         summary_writer.add_summary(sess.run(stats), step)
 
                     if step % args.checkpoint_interval == 0:
-
                         crrt_dir = os.path.join(log_dir, str(step))
                         os.makedirs(crrt_dir, exist_ok=True)
 
@@ -192,20 +161,15 @@ def train(log_dir, args):
                             models[0].inputs[0], models[0].linear_outputs[0], models[0].alignments[0], wav[0],
                             models[0].mel_outputs[0], linear_targets[0], mel_targets[0]])
                         waveform = audio.inv_spectrogram(spectrogram.T)
-                        print(waveform)
-                        print(wav_original)
                         audio.save_wav(waveform, os.path.join(crrt_dir, 'step-%d-audio.wav' % step))
                         audio.save_wav(wav_original, os.path.join(crrt_dir, 'step-%d-audio-original.wav' % step))
                         np.save(os.path.join(crrt_dir, 'spec.npy'), spectrogram, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'melspectogram.npy'), melspectogram, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'spec_original.npy'), spec_original, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'mel_original.npy'), mel_original, allow_pickle=False)
-                        #audio.save_wav(wav, os.path.join(crrt_dir, 'step-%d-audio2.wav' % step))
                         plot.plot_alignment(alignment, os.path.join(crrt_dir, 'step-%d-align.png' % step),
                             info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
-
-
-
+                        #提取alignment， 看看对其效果如何
                         transition_params = []
                         for i in range(alignment.shape[0]):
                             transition_params.append([])
@@ -223,47 +187,22 @@ def train(log_dir, args):
                         plot.plot_alignment(alignment4, os.path.join(crrt_dir, 'step-%d-align2.png' % step),
                                                                 info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
 
-                        '''
                         crrt = 0
                         sample_crrt = 0
                         sample_last = 0
                         for i, item in enumerate(alignment3[0]):
                             if item == crrt:
-                                sample_crrt += hparams.sample_rate * hparams.frame_shift_ms * 6 / 1000
+                                sample_crrt += hparams.sample_rate * hparams.frame_shift_ms * hparams.outputs_per_step / 1000
                             if not item == crrt:
                                 crrt += 1
-                                print('item')
-                                print(item)
                                 sample_crrt = int(sample_crrt)
                                 sample_last = int(sample_last)
                                 wav_crrt = waveform[ : sample_crrt]
                                 wav_crrt2 = waveform[sample_last : sample_crrt]
-                                print('i')
-                                print(i)
                                 audio.save_wav(wav_crrt, os.path.join(crrt_dir, '%d.wav' % crrt))
                                 audio.save_wav(wav_crrt2, os.path.join(crrt_dir, '%d-2.wav' % crrt))
                                 sample_last = sample_crrt
-                                sample_crrt += hparams.sample_rate * hparams.frame_shift_ms * 6 / 1000
-                                print('wav_crrt_len')
-                                print(len(wav_crrt))
-    
-    
-                        print('wavform_len')
-                        print(len(waveform))
-                        '''
-
-
-                        #print('alignment.shape: %s' % str(alignment.shape))
-                        #print('alignment: %s' % alignment)
-                        #print(model_tacotron.alignments[0])
-                        #print(model_tacotron.alignments[0].shape)
-                        #print('alignment2: %s' % alignment2)
-                        #print('alignment3: %s' % alignment3[0])
-                        print('length alignment2')
-                        print(alignment2.size)
-                        print('input_seq.shape: %s' % str(input_seq.shape))
-                        print('spectrogram.shape: %s' % str(spectrogram.shape))
-                        print('wav_target.shape: %s' % str(wav.shape))
+                                sample_crrt += hparams.sample_rate * hparams.frame_shift_ms * hparams.outputs_per_step / 1000
 
                         input_seq2 = []
                         input_seq3 = []
@@ -272,7 +211,7 @@ def train(log_dir, args):
                         for item in alignment3[0]:
                             input_seq3.append(input_seq[item])
 
-                        #output
+                        #output alignment
                         path_align1 = os.path.join(crrt_dir, 'step-%d-align1.txt' % step)
                         path_align2 = os.path.join(crrt_dir, 'step-%d-align2.txt' % step)
                         path_align3 = os.path.join(crrt_dir, 'step-%d-align3.txt' % step)
@@ -300,30 +239,22 @@ def train(log_dir, args):
                         with open(path_seq3, 'w') as f:
                             f.write(sequence_to_text(input_seq3))
 
-                        #print('input_seq.shape: %s' % input_seq.shape)
                         log('Input: %s' % sequence_to_text(input_seq))
-                        #log('Input2: %s' % sequence_to_text(input_seq2))
-                        #log('Input3: %s' % sequence_to_text(input_seq3))
-                        #time.sleep(200)
-                        #'''
-                        #"""
-
-
-                #train_threads = []
-                #for model in models:
-                #    train_threads.append(threading.Thread(target=train_func, args=(global_step, model, time_window, loss_window, sess, saver,)))
-                #for t in train_threads:
-                #    t.start()
-                #for t in train_threads:
-                #    t.join()
 
             except Exception as e:
-                log('Exiting due to exception: %s' % e, slack=True)
-                traceback.print_exc()
+                #log('Exiting due to exception: %s' % e, slack=True)
+                #traceback.print_exc()
                 coord.request_stop(e)
 
-
 def main():
+
+    def _str_to_bool(s):
+        """Convert string to bool (in argparse context)."""
+        if s.lower() not in ['true', 'false']:
+            raise ValueError('Argument needs to be a '
+                             'boolean, got {}'.format(s))
+        return {'true': True, 'false': False}[s.lower()]
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_dir', default='./logs/')
     parser.add_argument('--model', default='tacotron')
@@ -342,7 +273,7 @@ def main():
     parser.add_argument('--preprocess_thread', type=int, default=1, help='preprocess_thread.')
     parser.add_argument('--description', default=None, help='description of the model')
     parser.add_argument('--bucket_len', type=int, default=1, help='bucket_len')
-    parser.add_argument('--eos', type=int, default=1, help='whether ues eos in the input sequence')
+    parser.add_argument('--eos', type=_str_to_bool, default='True', help='whether ues eos in the input sequence')
     parser.add_argument('--initial_learning_rate', type=float, default=None, help='initial_learning_rate')
     parser.add_argument('--train_data', type=str, default='THCHS', help='training datas to be used')
 
