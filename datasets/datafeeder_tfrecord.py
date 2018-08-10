@@ -9,7 +9,7 @@ import numpy as np
 
 class DataFeeder():
 
-    def __init__(self, hparams, file_list, saparator_between_characters=None):
+    def __init__(self, hparams, file_list):
         """构造从TFRecord读取数据的图.
 
         Args:
@@ -39,6 +39,7 @@ class DataFeeder():
                 {
                 'input_lengths': tf.FixedLenFeature([], dtype=tf.int64),
                 'n_frame': tf.FixedLenFeature([], tf.int64),
+                'identity': tf.FixedLenFeature([], tf.int64),
                 },
                 {
                 "inputs": tf.FixedLenSequenceFeature([], dtype=tf.int64),
@@ -50,6 +51,7 @@ class DataFeeder():
 
             self.inputs = tf.to_int32(feat_list["inputs"])
             self.n_frame = tf.to_int32(context["n_frame"])
+            self.identity = tf.to_int32(context["identity"])
             self.input_lengths = tf.cast(context['input_lengths'], tf.int64)
             self.linear_targets = feat_list['spec']#tf.decode_raw(features['spec'], tf.float32)
             #self.linear_targets = tf.transpose(self.linear_targets)
@@ -69,38 +71,13 @@ class DataFeeder():
 
             self.wav = feat_list['wav']#tf.decode_raw(features['wav'], tf.float32)
             self.n_frame = tf.shape(self.inputs)[0]
-            print('self.inputs')
-            print(self.inputs)
-            a = np.asarray([0.0, 0])
-            print('a.shape')
-            print(a.shape)
+
             if self.hp.eos:
                 eos_crrt = tf.random_uniform([1], minval=7000, maxval=13550, dtype=tf.int32)
                 self.inputs = tf.concat([self.inputs, eos_crrt], 0)
 
-            if saparator_between_characters:
-                z = tf.zeros(tf.shape(self.inputs), dtype=tf.int32)
-                zz = tf.expand_dims(z, 1)
-                print('inputs')
-                print(self.inputs)
-                print('zz')
-                print(zz)
-                print('z')
-                print(z)
-                self.inputs = tf.expand_dims(self.inputs, 1)
-                self.inputs = tf.reshape(self.inputs, [-1, 1])
-                print('inputs')
-                print(self.inputs)
-                e = tf.concat([zz, self.inputs], 1)
-                print('e')
-                print(e)
-                #e = tf.transpose(e, [1,0])
-                print('e2')
-                print(e)
-                self.inputs = tf.reshape(e, [-1])
-
             _, self.__batch_tensors = tf.contrib.training.bucket_by_sequence_length(self.n_frame,
-                [self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav],
+                [self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav, self.identity],
                 self.hp.batch_size, bucket_boundaries, capacity=30, dynamic_pad=True, num_threads=25)
 
             #input_tensors = [self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav]
@@ -114,9 +91,9 @@ class DataFeeder():
         Returns:
           6元组, 包括帧数, 标签, 特征.
         """
-        inputs, input_lengths, linear_targets, mel_targets, n_frame, wav = \
+        inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = \
             tuple(self.__batch_tensors)
-        return inputs, input_lengths, linear_targets, mel_targets, n_frame, wav
+        return inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity
 
 
 '''
