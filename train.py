@@ -83,6 +83,9 @@ def train(log_dir, args):
         feeder = DataFeeder(hparams, file_list)
         inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
 
+        print('identity')
+        print(identity)
+
         # Set up model:
         global_step = tf.Variable(0, name='global_step', trainable=False)
 
@@ -125,6 +128,7 @@ def train(log_dir, args):
                     log('Starting new training run at commit: %s' % commit, slack=True)
 
                 tf.train.start_queue_runners(sess=sess)
+                start_queue(sess=sess)
 
                 while not coord.should_stop():
                     start_time = time.time()

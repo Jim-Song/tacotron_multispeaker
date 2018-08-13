@@ -35,7 +35,7 @@ class Tacotron():
         with tf.variable_scope('inference') as scope:
             is_training = linear_targets is not None
             batch_size = tf.shape(inputs)[0]
-            hp = self._hparam
+            hp = self._hparams
             # Embeddings
             embedding_num = len(symbols2)
             print('embedding_num')
@@ -51,10 +51,25 @@ class Tacotron():
                 embedding_id_table = tf.get_variable('embedding_id', [id_num, hp.embedding_id_channels],
                                                      dtype=tf.float32,
                                                      initializer=tf.truncated_normal_initializer(stddev=0.5))
-                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identity) # [N, 32]
+                print('embedding_id_table')
+                print(embedding_id_table)
+                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identity) # [N, 64]
+                print('embedded_id_inputs2')
+                print(embedded_id_inputs)
+                print(embedded_id_inputs.shape)
                 embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)                  # [N, 1, 32]
+                print('embedded_id_inputs3')
+                print(embedded_id_inputs)
                 embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1], name=None) # [N, T_in, 32]
                 embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 2) # [N, T_in, 288]
+                print('identity is not None')
+                print(identity)
+                print('embedded_inputs')
+                print(embedded_inputs)
+                print('embedded_text_inputs')
+                print(embedded_text_inputs)
+                print('embedded_id_inputs4')
+                print(embedded_id_inputs)
             else:
                 embedded_inputs = embedded_text_inputs
 
