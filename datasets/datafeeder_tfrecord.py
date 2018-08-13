@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import tensorflow as tf
-import os, random, re
+import os, random, re, threading
 import numpy as np
 
 
 
 class DataFeeder():
 
-    def __init__(self, hparams, file_list):
+    def __init__(self, hparams, file_list, coordinator):
         """构造从TFRecord读取数据的图.
 
         Args:
@@ -18,6 +18,7 @@ class DataFeeder():
         """
         self.hp = hparams
         self.file_list = file_list
+        self.coord = coordinator
 
         pattern = '[.]*\\_id\\_num\\_([0-9]+)[.]+'
         id_num = 0
@@ -37,7 +38,7 @@ class DataFeeder():
                 bucket_boundaries = list(range(0, 50, self.hp.bucket_len))
                 queue_capacity = (len(bucket_boundaries) + 1) * self.hp.batch_size
 
-                self.queues.append(tf.RandomShuffleQueue(queue_capacity, 100, tf.string))
+                self.queues.append(tf.FIFOQueue(queue_capacity, tf.string))
 
                 input_example = self.queues[i].enqueue(serialized_example)
                 tf.train.add_queue_runner(tf.train.QueueRunner(self.queues[i], [input_example]))
@@ -80,6 +81,14 @@ class DataFeeder():
             self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav, \
             self.identity = self.queue.dequeue()
 
+            self.inputs.set_shape([None, None])
+            self.input_lengths.set_shape([None])
+            self.mel_targets.set_shape([None, None, hparams.num_mels])
+            self.linear_targets.set_shape([None, None, hparams.num_freq])
+            self.n_frame.set_shape([None])
+            self.wav.set_shape([None, None])
+            self.identity.set_shape([None])
+
 
     def _get_batch_input(self):
         """返回一组训练数据输入.
@@ -94,9 +103,19 @@ class DataFeeder():
 
 
     def start_queue(self, sess):
-        while True:
-            i = randint(0, len(self.file_list)-1)
+        while not self.coord.should_stop():
+            i = random.randint(0, len(self.file_list)-1)
             sess.run(self.enqueue[i])
+
+
+    def start_threads(self, sess, n_threads=1):
+        self.threads = []
+        for _ in range(n_threads):
+            thread = threading.Thread(target=self.start_queue, args=(sess,))
+            thread.daemon = True  # Thread will close when parent quits.
+            thread.start()
+            self.threads.append(thread)
+        return self.threads
 
 
 def _shuffle_inputs(input_tensors, capacity, min_after_dequeue, num_threads):

@@ -126,9 +126,8 @@ def train(log_dir, args):
                     log('Resuming from checkpoint: %s at commit: %s' % (restore_path, commit), slack=True)
                 else:
                     log('Starting new training run at commit: %s' % commit, slack=True)
-
-                tf.train.start_queue_runners(sess=sess)
-                start_queue(sess=sess)
+                tf.train.start_queue_runners(sess=sess, coord=coord)
+                #feeder.start_threads(sess=sess)
 
                 while not coord.should_stop():
                     start_time = time.time()
@@ -161,12 +160,12 @@ def train(log_dir, args):
                         log('Saving checkpoint to: %s-%d' % (checkpoint_path, step))
                         saver.save(sess, checkpoint_path, global_step=step)
                         log('Saving audio and alignment...')
-                        input_seq, spectrogram, alignment, wav_original, melspectogram, spec_original, mel_original = sess.run([
+                        input_seq, spectrogram, alignment, wav_original, melspectogram, spec_original, mel_original, identity = sess.run([
                             models[0].inputs[0], models[0].linear_outputs[0], models[0].alignments[0], wav[0],
-                            models[0].mel_outputs[0], linear_targets[0], mel_targets[0]])
+                            models[0].mel_outputs[0], linear_targets[0], mel_targets[0], identity[0]])
                         waveform = audio.inv_spectrogram(spectrogram.T)
                         audio.save_wav(waveform, os.path.join(crrt_dir, 'step-%d-audio.wav' % step))
-                        audio.save_wav(wav_original, os.path.join(crrt_dir, 'step-%d-audio-original.wav' % step))
+                        audio.save_wav(wav_original, os.path.join(crrt_dir, 'step-%d-audio-original-%d.wav' % (step, identity)))
                         np.save(os.path.join(crrt_dir, 'spec.npy'), spectrogram, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'melspectogram.npy'), melspectogram, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'spec_original.npy'), spec_original, allow_pickle=False)
@@ -285,7 +284,7 @@ def main():
 
 
     args = parser.parse_args()
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
+    #os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
     run_name = args.name or args.model
     log_dir = os.path.join(args.base_dir, 'logs-%s-%s' % (run_name, args.description))
     os.makedirs(log_dir, exist_ok=True)
