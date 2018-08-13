@@ -82,7 +82,7 @@ def preprocess_aishell(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output', default=hparams.output)
+    parser.add_argument('--output', required=True, default=None)
     parser.add_argument('--data_path', required=True)
     parser.add_argument('--dataset', required=True, choices=['THCHS', 'aishell'])
     parser.add_argument('--num_workers', type=int, default=20)
@@ -96,5 +96,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-##python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS
-##python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell
+##python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS --output /hdd1
+##python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output /hdd1

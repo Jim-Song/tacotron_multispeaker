@@ -34,8 +34,6 @@ hparams = tf.contrib.training.HParams(
     griffin_lim_iters=100,
     power=1.5,                            # Power to raise magnitudes to prior to Griffin-Lim
 
-    #data process
-    output='/hdd1',        #tfrecord存放处
 
     # network settings
     embedding_text_channels=256,
