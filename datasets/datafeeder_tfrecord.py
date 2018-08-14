@@ -9,40 +9,32 @@ import numpy as np
 
 class DataFeeder():
 
-    def __init__(self, hparams, file_list, coordinator):
+    def __init__(self, hparams, file_list):
         """构造从TFRecord读取数据的图.
-
         Args:
             hparams: 参数
             file_list: record文件列表.
         """
         self.hp = hparams
         self.file_list = file_list
-        self.coord = coordinator
-
         pattern = '[.]*\\_id\\_num\\_([0-9]+)[.]+'
         id_num = 0
-
         with tf.device("/cpu:0"):
             self.enqueue = []
             self.num_people = 0
             self.queues = []
-            self.queue = tf.FIFOQueue(8, [tf.int32, tf.int32, tf.float32, tf.float32, tf.int32, tf.float32, tf.int32], name='input_queue')
+            self.queue = tf.FIFOQueue(8, [tf.int32, tf.int32, tf.float32, tf.float32, tf.int32, tf.float32, tf.int32],
+                                      name='input_queue')
             for i, file in enumerate(self.file_list):
                 print(file)
                 filename_queue = tf.train.string_input_producer([file])
                 reader = tf.TFRecordReader()
                 _, serialized_example = reader.read(filename_queue)
-
-                #bucket_boundaries = list(range(80, self.hp.max_iters*self.hp.outputs_per_step, self.hp.outputs_per_step * 5))
                 bucket_boundaries = list(range(0, 50, self.hp.bucket_len))
                 queue_capacity = (len(bucket_boundaries) + 1) * self.hp.batch_size
-
                 self.queues.append(tf.FIFOQueue(queue_capacity, tf.string))
-
                 input_example = self.queues[i].enqueue(serialized_example)
                 tf.train.add_queue_runner(tf.train.QueueRunner(self.queues[i], [input_example]))
-
                 context, feat_list = tf.parse_single_sequence_example(
                     self.queues[i].dequeue(),
                     {
@@ -57,7 +49,6 @@ class DataFeeder():
                     'wav': tf.FixedLenSequenceFeature([], tf.float32),
                     }
                 )
-
                 inputs = tf.to_int32(feat_list["inputs"])
                 n_frame = tf.to_int32(context["n_frame"])
                 identity = tf.to_int32(context["identity"])
@@ -92,7 +83,6 @@ class DataFeeder():
 
     def _get_batch_input(self):
         """返回一组训练数据输入.
-
         Returns:
           6元组, 包括帧数, 标签, 特征 etc.
         """
@@ -108,69 +98,13 @@ class DataFeeder():
             sess.run(self.enqueue[i])
 
 
-    def start_threads(self, sess, n_threads=1):
+    def start_threads(self, sess, coord, n_threads=1):
         self.threads = []
+        self.coord = coord
         for _ in range(n_threads):
             thread = threading.Thread(target=self.start_queue, args=(sess,))
             thread.daemon = True  # Thread will close when parent quits.
             thread.start()
             self.threads.append(thread)
         return self.threads
-
-
-def _shuffle_inputs(input_tensors, capacity, min_after_dequeue, num_threads):
-    """Shuffles tensors in `input_tensors`, maintaining grouping."""
-    shuffle_queue = tf.RandomShuffleQueue(
-        capacity, min_after_dequeue, dtypes=[t.dtype for t in input_tensors])
-    enqueue_op = shuffle_queue.enqueue(input_tensors)
-    runner = tf.train.QueueRunner(shuffle_queue, [enqueue_op] * num_threads)
-    tf.train.add_queue_runner(runner)
-
-    output_tensors = shuffle_queue.dequeue()
-
-    for i in range(len(input_tensors)):
-        output_tensors[i].set_shape(input_tensors[i].shape)
-
-    return output_tensors
-
-
-
-def count_records(file_list, stop_at=None):
-    """Counts number of records in files from `file_list` up to `stop_at`.
-    Args:
-      file_list: List of TFRecord files to count records in.
-      stop_at: Optional number of records to stop counting at.
-    Returns:
-      Integer number of records in files from `file_list` up to `stop_at`.
-    """
-    num_records = 0
-    for tfrecord_file in file_list:
-        tf.logging.info('Counting records in %s.', tfrecord_file)
-        print('Counting records in %s.', tfrecord_file)
-        for _ in tf.python_io.tf_record_iterator(tfrecord_file):
-            num_records += 1
-            if stop_at and num_records >= stop_at:
-                print('Number of records is at least %d.', num_records)
-                tf.logging.info('Number of records is at least %d.', num_records)
-                return num_records
-    tf.logging.info('Total records: %d', num_records)
-    print('Total records: %d', num_records)
-    return num_records
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
