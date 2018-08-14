@@ -13,16 +13,9 @@ from datasets.datafeeder_tfrecord import DataFeeder
 from hparams import hparams, hparams_debug_string
 from models import create_model
 from text import sequence_to_text, sequence_to_text2
-from util import audio, infolog, plot, ValueWindow, align
+from util import audio, infolog, plot, ValueWindow
 
 log = infolog.log
-
-
-def get_git_commit():
-    subprocess.check_output(['git', 'diff-index', '--quiet', 'HEAD'])     # Verify client is clean
-    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()[:10]
-    log('Git commit: %s' % commit)
-    return commit
 
 
 def add_stats(model):
@@ -46,7 +39,6 @@ def time_string():
 
 
 def train(log_dir, args):
-    commit = get_git_commit() if args.git else 'None'
     checkpoint_path = os.path.join(log_dir, 'model.ckpt')
     log('Checkpoint path: %s' % checkpoint_path)
     log('Using model: %s' % args.model)
@@ -92,8 +84,7 @@ def train(log_dir, args):
                         models[i].add_loss()
                         models[i].add_optimizer(global_step)
                         stats = add_stats(models[i])
-                        #tf.get_variable_scope().reuse_variables()
-                        print(tf.get_variable_scope())
+
         # Bookkeeping:
         step = 0
         time_window = ValueWindow(250)
@@ -110,9 +101,9 @@ def train(log_dir, args):
                     # Restore from a checkpoint if the user requested it.
                     restore_path = '%s-%d' % (checkpoint_path, args.restore_step)
                     saver.restore(sess, restore_path)
-                    log('Resuming from checkpoint: %s at commit: %s' % (restore_path, commit), slack=True)
+                    log('Resuming from checkpoint: %s: %s' % restore_path)
                 else:
-                    log('Starting new training run at commit: %s' % commit, slack=True)
+                    log('Starting new training run')
                 tf.train.start_queue_runners(sess=sess, coord=coord)
                 feeder.start_threads(sess=sess, coord=coord)
                 while not coord.should_stop():
@@ -125,7 +116,7 @@ def train(log_dir, args):
                     loss_window.append(loss)
                     message = 'Step %-7d [%.03f avg_sec/step,  loss=%.05f,  avg_loss=%.05f,  lossw=%.05f]' % (
                         step, time_window.average, loss, loss_window.average, loss_w if loss_w else loss)
-                    log(message, slack=(step % args.checkpoint_interval == 0))
+                    log(message)
 
                     # if the gradient seems to explode, then restore to the previous step
                     if loss > 2 * loss_window.average or math.isnan(loss):
@@ -159,7 +150,7 @@ def train(log_dir, args):
                         np.save(os.path.join(crrt_dir, 'spec_original.npy'), spec_original, allow_pickle=False)
                         np.save(os.path.join(crrt_dir, 'mel_original.npy'), mel_original, allow_pickle=False)
                         plot.plot_alignment(alignment, os.path.join(crrt_dir, 'step-%d-align.png' % step),
-                            info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
+                            info='%s, %s, step=%d, loss=%.5f' % (args.model, time_string(), step, loss))
 
                         #提取alignment， 看看对其效果如何
                         transition_params = []
@@ -177,8 +168,8 @@ def train(log_dir, args):
                         for i, item in enumerate(alignment3[0]):
                             alignment4[item, i] = 1
                         plot.plot_alignment(alignment4, os.path.join(crrt_dir, 'step-%d-align2.png' % step),
-                                            info='%s, %s, %s, step=%d, loss=%.5f' %
-                                                 (args.model, commit, time_string(), step, loss))
+                                            info='%s, %s, step=%d, loss=%.5f' %
+                                                 (args.model, time_string(), step, loss))
 
                         crrt = 0
                         sample_crrt = 0
@@ -236,7 +227,7 @@ def train(log_dir, args):
                         log('Input: %s' % sequence_to_text(input_seq))
 
             except Exception as e:
-                log('Exiting due to exception: %s' % e, slack=True)
+                log('Exiting due to exception: %s' % e)
                 traceback.print_exc()
                 coord.request_stop(e)
 
@@ -248,10 +239,10 @@ def main():
             raise ValueError('Argument needs to be a '
                              'boolean, got {}'.format(s))
         return {'true': True, 'false': False}[s.lower()]
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_dir', default='./logs/')
     parser.add_argument('--model', default='tacotron')
-    parser.add_argument('--name', help='Name of the run. Used for logging. Defaults to model name.')
     parser.add_argument('--hparams', default='',
         help='Hyperparameter overrides as a comma-separated list of name=value pairs')
     parser.add_argument('--restore_step', type=int, help='Global step to restore from checkpoint.')
@@ -259,7 +250,6 @@ def main():
         help='Steps between running summary ops.')
     parser.add_argument('--checkpoint_interval', type=int, default=1000,
         help='Steps between writing checkpoints.')
-    parser.add_argument('--slack_url', help='Slack webhook URL to get periodic reports.')
     parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
     parser.add_argument('--GPUs_id', default='[0]', help='The GPUs\' id list that will be used. Default is 0')
     parser.add_argument('--description', default=None, help='description of the model')
@@ -269,10 +259,9 @@ def main():
 
     args = parser.parse_args()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
-    run_name = args.name or args.model
-    log_dir = os.path.join(args.base_dir, 'logs-%s-%s' % (run_name, args.description))
+    log_dir = os.path.join(args.base_dir, 'logs-%s-%s' % (args.model, args.description))
     os.makedirs(log_dir, exist_ok=True)
-    infolog.init(os.path.join(log_dir, 'train.log'), run_name, args.slack_url)
+    infolog.init(os.path.join(log_dir, 'train.log'))
     hparams.parse(args.hparams)
     train(log_dir, args)
 
