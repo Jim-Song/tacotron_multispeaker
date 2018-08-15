@@ -1,9 +1,8 @@
 import argparse
 import os
-from tqdm import tqdm
 from datasets.wav_to_tfrecord import wav_to_tfrecord_read_from_text
 from hparams import hparams
-import re, shutil, random
+import re, random
 
 
 
@@ -95,6 +94,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-##python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS --output /hdd1
-##python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output /hdd1
+'''
+recommended command
+python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS --output ../data
+python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output ../data
+'''
