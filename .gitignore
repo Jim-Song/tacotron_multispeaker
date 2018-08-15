@@ -1,0 +1,18 @@
+#python
+*.py[cod]
+*.so
+*.egg
+*.egg-info
+dist
+build
+
+#tensorflow saved model
+#.npy
+*.png
+*.wav
+*.log
+*.meta
+*.index
+*.ubuntu
+*-00001
+
