@@ -133,6 +133,14 @@ class Tacotron():
             self.linear_loss = 0.5 * tf.reduce_mean(l1) + 0.5 * tf.reduce_mean(l1[:,:,0:n_priority_freq])
             self.loss = self.mel_loss + self.linear_loss
             self.loss = self.loss
+            if self._hparams.alignment_entropy:
+                pr = tf.nn.softmax(self.alignments, 2)
+                lg_pr = tf.log(pr)
+                self.loss_alignment_entropy = -1 * tf.reduce_mean(pr * lg_pr)
+                self.loss += self.loss_alignment_entropy * self._hparams.alignment_entropy
+
+
+
 
 
     def add_optimizer(self, global_step):

@@ -47,6 +47,7 @@ def train(log_dir, args):
     sequence_to_text = sequence_to_text2
     hparams.bucket_len = args.bucket_len
     hparams.eos = args.eos
+    hparams.alignment_entropy = args.alignment_entropy
 
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         # Multi-GPU settings
@@ -101,21 +102,33 @@ def train(log_dir, args):
                     # Restore from a checkpoint if the user requested it.
                     restore_path = '%s-%d' % (checkpoint_path, args.restore_step)
                     saver.restore(sess, restore_path)
-                    log('Resuming from checkpoint: %s: %s' % restore_path)
+                    log('Resuming from checkpoint: %s' % restore_path)
                 else:
                     log('Starting new training run')
                 tf.train.start_queue_runners(sess=sess, coord=coord)
                 feeder.start_threads(sess=sess, coord=coord)
                 while not coord.should_stop():
                     start_time = time.time()
-                    loss_w = None
-
-                    step, loss, opt, inputs2 = sess.run([global_step, models[0].loss, models[0].optimize, inputs])
+                    loss_alignment_entropy = None
+                    if args.alignment_entropy:
+                        step, loss, opt, loss_alignment_entropy = \
+                            sess.run([global_step,
+                                      models[0].loss,
+                                      models[0].optimize,
+                                      models[0].loss_alignment_entropy,
+                                      ])
+                    else:
+                        step, loss, opt = \
+                            sess.run([global_step,
+                                      models[0].loss,
+                                      models[0].optimize,
+                                      ])
 
                     time_window.append(time.time() - start_time)
                     loss_window.append(loss)
                     message = 'Step %-7d [%.03f avg_sec/step,  loss=%.05f,  avg_loss=%.05f,  lossw=%.05f]' % (
-                        step, time_window.average, loss, loss_window.average, loss_w if loss_w else loss)
+                        step, time_window.average, loss, loss_window.average, loss_alignment_entropy if
+                        loss_alignment_entropy else loss)
                     log(message)
 
                     # if the gradient seems to explode, then restore to the previous step
@@ -256,6 +269,7 @@ def main():
     parser.add_argument('--bucket_len', type=int, default=1, help='bucket_len')
     parser.add_argument('--eos', type=_str_to_bool, default='True', help='whether ues eos in the input sequence')
     parser.add_argument('--train_data', type=str, default='THCHS', help='training datas to be used')
+    parser.add_argument('--alignment_entropy', type=float, default=0, help='whether apply entropy on alignment')
 
     args = parser.parse_args()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)

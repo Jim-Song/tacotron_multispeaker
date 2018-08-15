@@ -72,13 +72,13 @@ class DataFeeder():
             self.inputs, self.input_lengths, self.linear_targets, self.mel_targets, self.n_frame, self.wav, \
             self.identity = self.queue.dequeue()
 
-            self.inputs.set_shape([None, None])
-            self.input_lengths.set_shape([None])
-            self.mel_targets.set_shape([None, None, hparams.num_mels])
-            self.linear_targets.set_shape([None, None, hparams.num_freq])
-            self.n_frame.set_shape([None])
-            self.wav.set_shape([None, None])
-            self.identity.set_shape([None])
+            self.inputs.set_shape([self.hp.batch_size, None])
+            self.input_lengths.set_shape([self.hp.batch_size])
+            self.mel_targets.set_shape([self.hp.batch_size, None, hparams.num_mels])
+            self.linear_targets.set_shape([self.hp.batch_size, None, hparams.num_freq])
+            self.n_frame.set_shape([self.hp.batch_size])
+            self.wav.set_shape([self.hp.batch_size, None])
+            self.identity.set_shape([self.hp.batch_size])
 
 
     def _get_batch_input(self):
