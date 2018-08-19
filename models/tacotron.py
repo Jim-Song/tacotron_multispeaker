@@ -135,9 +135,14 @@ class Tacotron():
             self.loss = self.loss
             if self._hparams.alignment_entropy:
                 pr = tf.nn.softmax(self.alignments, 2)
+                pr_slice1 = tf.slice(pr, [0, 0, 0], [tf.shape(pr)[0], tf.shape(pr)[1], tf.shape(pr)[2] - 1])
+                pr_slice2 = tf.slice(pr, [0, 0, 1], [tf.shape(pr)[0], tf.shape(pr)[1], tf.shape(pr)[2] - 1])
                 lg_pr = tf.log(pr)
                 self.loss_alignment_entropy = -1 * tf.reduce_mean(pr * lg_pr)
-                self.loss += self.loss_alignment_entropy * self._hparams.alignment_entropy
+                self.loss += self._hparams.alignment_entropy * (self.loss_alignment_entropy +
+                              20 * tf.reduce_sum((pr_slice1 - pr_slice2) * (pr_slice1 - pr_slice2)))
+
+
 
 
 

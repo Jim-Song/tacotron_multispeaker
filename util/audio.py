@@ -52,7 +52,7 @@ def melspectrogram(y):
   return _normalize(S)
 
 
-def find_endpoint(wav, threshold_db=-40, min_silence_sec=0.8):
+def find_endpoint(wav, threshold_db=-10, min_silence_sec=2):
   window_length = int(hparams.sample_rate * min_silence_sec)
   hop_length = int(window_length / 4)
   threshold = _db_to_amp(threshold_db)

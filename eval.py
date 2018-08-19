@@ -43,9 +43,10 @@ sentences = ['习近平多次强调',
 
 def get_output_base_path(checkpoint_path):
     base_dir = os.path.dirname(checkpoint_path)
+    os.makedirs(os.path.join(base_dir, 'eval'), exist_ok=True)
     m = re.compile(r'.*?\.ckpt\-([0-9]+)').match(checkpoint_path)
     name = 'eval-%d' % int(m.group(1)) if m else 'eval'
-    return os.path.join(base_dir, name)
+    return os.path.join(base_dir, 'eval', name)
 
 
 def run_eval(args):
@@ -67,8 +68,8 @@ def run_eval(args):
     synth.load(ckpt_path)
     base_path = get_output_base_path(ckpt_path)
     for i, text in enumerate(sentences):
-        path = '%s-%d.wav' % (base_path, i)
-        path_alignment = '%s-%d.png' % (base_path, i)
+        path = '%s-%d-identity-%d-%s.wav' % (base_path, i, args.identity, text)
+        path_alignment = '%s-%d-identity-%d.png' % (base_path, i, args.identity)
         print('Synthesizing: %s' % path)
         synth.synthesize(text, args.identity, path, path_alignment)
 
@@ -81,7 +82,7 @@ def main():
     parser.add_argument('--hparams', default='', help='Hyperparameter overrides as a comma-separated list of name=value pairs')
     parser.add_argument('--ckpt_path', default=None, help='the model to be restored')
     parser.add_argument('--description', default=None, help='the model to be restored')
-    parser.add_argument('--identity', default=0, help="the person's speech to be synthesized")
+    parser.add_argument('--identity', default=0, type=int, help="the person's speech to be synthesized")
 
     args = parser.parse_args()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'

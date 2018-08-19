@@ -38,6 +38,8 @@ class Synthesizer:
     def synthesize(self, text, identity, path=None, path_align=None):
         cleaner_names = [x.strip() for x in hparams.cleaners.split(',')]
         seq = text_to_sequence2(text, cleaner_names)[:-1]
+        #eos
+        seq.append(10000)
         print(seq)
         print(sequence_to_text2(seq))
         feed_dict = {
@@ -51,7 +53,7 @@ class Synthesizer:
             plot.plot_alignment(alignment, path_align)
         #print('456')
         wav = audio.inv_preemphasis(wav)
-        wav = wav[:audio.find_endpoint(wav)]
+        #wav = wav[:audio.find_endpoint(wav)]
         out = io.BytesIO()
         if path is not None:
             audio.save_wav(wav, path)
