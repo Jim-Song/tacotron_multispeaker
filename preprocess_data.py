@@ -12,7 +12,7 @@ def preprocess_THCHS(args):
     input_path = args.data_path
     data_name = 'THCHS'
     id_dict = {}
-    ct = 1
+    ct = 0
     text_path = './datasets/name_THCHS_list.txt'
 
     with open(text_path, 'w') as f:
@@ -45,7 +45,7 @@ def preprocess_aishell(args):
     input_path = args.data_path
     data_name = 'aishell'
     id_dict = {}
-    ct = 1
+    ct = 0
     text_path = './datasets/name_aishell_list.txt'
     aishell_transcript_v08 = os.path.join(args.data_path, 'transcript', 'aishell_transcript_v0.8.txt')
 
@@ -79,6 +79,23 @@ def preprocess_aishell(args):
     wav_to_tfrecord_read_from_text(args=args, text_path=text_path, data_name=data_name, id_num=len(id_dict))
 
 
+    def preprocess_VCTK(args):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', required=True, default=None)
@@ -96,6 +113,6 @@ if __name__ == "__main__":
     main()
 '''
 recommended command
-python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS --output ../data
-python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output ../data
+python3 preprocess_data.py --data_path ../data/THCHS/data_thchs30/data_thchs30/data --dataset THCHS --output /ssd1
+python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output /ssd1
 '''

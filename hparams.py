@@ -19,7 +19,7 @@ hparams = tf.contrib.training.HParams(
 
     # Model:
     # TODO: add more configurable hparams
-    outputs_per_step=5,
+    outputs_per_step=1,
 
     # Training:
     batch_size=64,

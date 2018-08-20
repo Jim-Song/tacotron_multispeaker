@@ -15,10 +15,10 @@ import multiprocessing
 
 
 
-with open('./datasets/character_list.json', 'r') as f:
-    _characters = json.load(f)
-with open('./datasets/phone_list.json', 'r') as f:
-    _phones = json.load(f)
+with open('./datasets/phone+character+alphabet+punctuation_list.json', 'r') as f:
+    _symbols = json.load(f)
+
+
 
 _pad = '_'
 _eos = '~'
@@ -51,16 +51,6 @@ def _symbols_to_sequence(symbols):
             out.append(_symbol_to_id['_'])
     return out
 
-def _prepare_targets(targets, alignment):
-    max_len = len(targets) + 1
-    return _pad_target(targets, _round_up(max_len, alignment))
-
-def _pad_target(t, length):
-    return np.pad(t, [(0, length - t.shape[0]), (0, 0)], mode='constant', constant_values=0)
-
-def _round_up(x, multiple):
-    remainder = x % multiple
-    return x if remainder == 0 else x + multiple - remainder
 
 
 def _process_utterance(wav_path, seq, id):
@@ -80,8 +70,6 @@ def _process_utterance(wav_path, seq, id):
     spectrogram = audio.spectrogram(wav).astype(np.float32).T
     # Compute a mel-scale spectrogram from the wav:
     mel_spectrogram = audio.melspectrogram(wav).astype(np.float32).T
-    mel_spectrogram = _prepare_targets(mel_spectrogram, hparams.outputs_per_step)
-    spectrogram = _prepare_targets(spectrogram, hparams.outputs_per_step)
 
     input_lengths = len(seq)
     n_frames = spectrogram.shape[0]
@@ -147,7 +135,6 @@ def wav_to_tfrecord_read_from_text(args, text_path, data_name, id_num):
     tfrecord_dir = os.path.join(args.output, "tfrecord_tacotron_" + data_name)
     os.makedirs(tfrecord_dir, exist_ok=True)
     tfrecord_file = os.path.join(tfrecord_dir, 'tfrecord_tacotron_' + data_name +
-                                 '_outputsperstep_' + str(hparams.outputs_per_step) +
                                  '_id_num_' + str(id_num) + '.tfrecord')
 
     q_in = [multiprocessing.Queue(1024) for i in range(args.num_workers)]  # num_thread  default = 32

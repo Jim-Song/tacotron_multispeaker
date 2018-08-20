@@ -101,7 +101,8 @@ def _symbols_to_sequence2(symbols):
     try:
       out.append(_symbol_to_id2[s])
     except:
-      out.append(_symbol_to_id2['_'])
+      #out.append(_symbol_to_id2['_'])
+      pass
   return out
 
 def _arpabet_to_sequence(text):
