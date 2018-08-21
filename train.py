@@ -9,7 +9,9 @@ import tensorflow as tf
 import traceback
 
 
-from datasets.datafeeder_tfrecord import DataFeeder
+from datasets.datafeeder_tfrecord import DataFeeder as DataFeeder_tfrecord
+from datasets.datafeeder_npy import DataFeeder as DataFeeder_npy
+
 from hparams import hparams, hparams_debug_string
 from models import create_model
 from text import sequence_to_text, sequence_to_text2
@@ -58,19 +60,40 @@ def train(log_dir, args):
 
         # Set up DataFeeder:
         coord = tf.train.Coordinator()
-        with open('./train_data_dict.json', 'r') as f:
-            train_data_dict = json.load(f)
-        train_data = args.train_data.split(',')
-        file_list = []
-        pattern = '[.]*\\_id\\_num\\_([0-9]+)[.]+'
-        id_num = 0
-        for item in train_data:
-            file_list.append(train_data_dict[item])
-            id_num += int( re.findall(pattern, train_data_dict[item])[0] )
-        log('train data:%s' % args.train_data)
 
-        feeder = DataFeeder(hparams, file_list)
-        inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
+        if args.data_type == 'tfrecord':
+            with open('./train_data_dict.json', 'r') as f:
+                train_data_dict = json.load(f)
+            train_data = args.train_data.split(',')
+            file_list = []
+            pattern = '[.]*\\_id\\_num\\_([0-9]+)[.]+'
+            id_num = 0
+            for item in train_data:
+                file_list.append(train_data_dict[item])
+                id_num += int(re.findall(pattern, train_data_dict[item])[0] )
+            log('train data:%s' % args.train_data)
+
+            feeder = DataFeeder_tfrecord(hparams, file_list)
+            inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
+
+        elif args.data_type == 'npy':
+            with open('./train_npy_data_dict.json', 'r') as f:
+                train_data_dict = json.load(f)
+            train_data = args.train_data.split(',')
+            file_list = []
+            pattern = '[.]*\\_id\\_num\\_([0-9]+)[.]+'
+            id_num = 0
+            for item in train_data:
+                file_list.append(train_data_dict[item])
+                id_num += int(re.findall(pattern, train_data_dict[item])[0])
+            log('train data:%s' % args.train_data)
+
+            feeder = DataFeeder_npy(hparams, file_list)
+            inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
+
+        else:
+            raise('not spificied the input data type')
+
 
         # Set up model:
         global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -270,6 +293,7 @@ def main():
     parser.add_argument('--eos', type=_str_to_bool, default='True', help='whether ues eos in the input sequence')
     parser.add_argument('--train_data', type=str, default='THCHS', help='training datas to be used')
     parser.add_argument('--alignment_entropy', type=float, default=0, help='whether apply entropy on alignment')
+    parser.add_argument('--data_type', type=str, default='npy', help='tfrecord or npy')
 
     args = parser.parse_args()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)

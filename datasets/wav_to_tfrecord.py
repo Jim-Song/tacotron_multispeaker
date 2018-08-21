@@ -23,15 +23,9 @@ with open('./datasets/phone+character+alphabet+punctuation_list.json', 'r') as f
 _pad = '_'
 _eos = '~'
 
-symbols = [_pad, _eos] + _characters
+symbols = [_pad, _eos] + _symbols
 _symbol_to_id = {s: i for i, s in enumerate(symbols)}
 _id_to_symbol = {i: s for i, s in enumerate(symbols)}
-
-phone_symbols = [_pad, _eos] + _phones
-
-_phone_symbol_to_id = {s: i for i, s in enumerate(phone_symbols)}
-_id_to_phone_symbol = {i: s for i, s in enumerate(phone_symbols)}
-
 
 
 #generate the int
