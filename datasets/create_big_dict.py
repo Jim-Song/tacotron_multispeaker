@@ -12,6 +12,7 @@ def get_all_symbols(filename):
         for line in f:
             if line.strip():
                 symbols.append(line.strip())
+    symbols.append(' ')
     return symbols
 
 symbols = []

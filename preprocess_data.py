@@ -81,18 +81,87 @@ def preprocess_aishell(args):
 
 
 
-    def preprocess_VCTK(args):
-        pass
+def preprocess_ljspeech(args):
+    input_path = args.data_path
+    data_name = 'ljspeech'
+    ct = 0
+    text_path = './datasets/name_ljspeech_list.txt'
+
+    with open(os.path.join(input_path, 'metadata.csv'), encoding='utf-8') as f:
+
+        with open(text_path, 'w') as f_write:
+            for line in f:
+                parts = line.strip().split('|')
+                wav_path = os.path.join(input_path, 'wavs', '%s.wav' % parts[0])
+                text = parts[2]
+
+                info_list = [wav_path, text, ct]
+                f_write.write(str(info_list) + '\n')
+
+    if args.data_type == 'tfrecord':
+        # 写入tfrecord文件中
+        wav_to_tfrecord_read_from_text(args=args, text_path=text_path, data_name=data_name, id_num=1)
+    if args.data_type == 'npy':
+        # 写入npy文件中
+        wav_to_npy_read_from_text(args=args, text_path=text_path, data_name=data_name, id_num=1)
 
 
+def preprocess_vctk(args):
+    input_path = args.data_path
+    data_name = 'vctk'
+    ct = 0
+    text_path = './datasets/name_vctk_list.txt'
 
+    vctk_path_wav = os.path.join(input_path, 'wav48')
+    vctk_path_txt = os.path.join(input_path, 'txt')
+
+    with open('./datasets/name_vctk_list.txt', 'w') as fvctk:
+        for dir_name in os.listdir(vctk_path_wav):
+            # dir_name = 'p300'
+            # wav_dir  = '/home/pattern/songjinming/tts/data/vctk-Corpus/wav48/p300'
+            # txt_dir  = '/home/pattern/songjinming/tts/data/vctk-Corpus/txt/p300'
+            wav_dir = os.path.join(vctk_path_wav, dir_name)
+            txt_dir = os.path.join(vctk_path_txt, dir_name)
+            for wav_file in os.listdir(wav_dir):
+                # wav_file  = 'p300_224.wav'
+                # name_file = 'p300_224'
+                # txt_file  = 'p300_224.txt'
+                # wav_root  = '/home/pattern/songjinming/tts/data/vctk-Corpus/wav48/p300/p300_224.wav'
+                # txt_root  = '/home/pattern/songjinming/tts/data/vctk-Corpus/txt/p300/p300_224.txt'
+                name_file = os.path.splitext(wav_file)[0]
+                # some file is not wav file and just skip
+                # print(os.path.splitext(wav_file))
+                if not os.path.splitext(wav_file)[1] == '.wav':
+                    continue
+                txt_file = '.'.join([name_file, 'txt'])
+                wav_root = os.path.join(wav_dir, wav_file)
+                txt_root = os.path.join(txt_dir, txt_file)
+                # txt
+                # some wav files dont have correspond txt file
+                try:
+                    text = open(txt_root, 'r').read()
+                    text = re.sub('\n', '', text)
+                except:
+                    continue
+                # write
+                info_list = [wav_root, text, ct]
+                fvctk.write(str(info_list))
+                fvctk.write('\n')
+            ct += 1
+
+    if args.data_type == 'tfrecord':
+        # 写入tfrecord文件中
+        wav_to_tfrecord_read_from_text(args=args, text_path=text_path, data_name=data_name, id_num=ct)
+    if args.data_type == 'npy':
+        # 写入npy文件中
+        wav_to_npy_read_from_text(args=args, text_path=text_path, data_name=data_name, id_num=ct)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', required=True, default=None)
     parser.add_argument('--data_path', required=True, help='input data path')
-    parser.add_argument('--dataset', required=True, choices=['THCHS', 'aishell'])
+    parser.add_argument('--dataset', required=True, choices=['THCHS', 'aishell', 'ljspeech', 'vctk'])
     parser.add_argument('--num_workers', type=int, default=30)
     parser.add_argument('--data_type', type=str, default='npy', help='the data type to be saved, could be npy or tfrecord')
     args = parser.parse_args()
@@ -100,6 +169,10 @@ def main():
         preprocess_THCHS(args)
     if args.dataset == 'aishell':
         preprocess_aishell(args)
+    if args.dataset == 'ljspeech':
+        preprocess_ljspeech(args)
+    if args.dataset == 'vctk':
+        preprocess_vctk(args)
 
 
 if __name__ == "__main__":
@@ -108,4 +181,7 @@ if __name__ == "__main__":
 recommended command
 python3 preprocess_data.py --data_path ../data/THCHS/ --dataset THCHS --output /ssd1 --data_type npy
 python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output /ssd1 --data_type npy
+python3 preprocess_data.py --data_path ../data/LJSpeech-1.0/ --dataset ljspeech --output /ssd1 --data_type npy
+python3 preprocess_data.py --data_path ../data/vctk-Corpus/ --dataset vctk --output /ssd1 --data_type npy
+
 '''

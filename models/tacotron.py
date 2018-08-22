@@ -163,7 +163,7 @@ class Tacotron():
                     loss_variance_between_row = tf.reduce_sum(variance_batch)
                     self.loss_regularity += self._hparams.variance_between_row * loss_variance_between_row
 
-                self.loss += self._hparams.alignment_entropy * self.loss_regularity
+                self.loss += self.loss_regularity
 
 
     def add_optimizer(self, global_step):

@@ -125,11 +125,24 @@ class DataFeeder(threading.Thread):
         #         '职工 们 爱 厂 爱岗 爱 产品 心 往 一处 想 劲儿 往 一处 使',
         #         25]
         self._offset += 1
+        #preprocess text
         text = meta[3]
         if self._phone_dict :
             self._p_phone_sub = random.random() - 0.5 + (self._hparams.per_cen_phone_input * 2 -0.5)
-            text = ''.join([self._maybe_get_arpabet(word) for word in text.split(' ')])
+            text2 = ''
+            for word in text.split(' '):
+                exist_alpha = False
+                for item in word:
+                    if item.isalpha():
+                        exist_alpha = True
+                        break
+                phone = self._maybe_get_arpabet(word)
+                if text2 is not None and exist_alpha:
+                    text2 = text2 + ' '
+                text2 += phone
+            text = text2
         input_data = np.asarray(text_to_sequence2(text, self._cleaner_names), dtype=np.int32)
+        #preprocess other inputs
         linear_target = np.load(meta[0])
         mel_target = np.load(meta[1])
         wav = np.load(meta[2])
@@ -143,7 +156,7 @@ class DataFeeder(threading.Thread):
             phone = ' '.join(phone)
         except:
             phone = None
-            log('%s is not found in the char 2 phone dict' % word)
+            #log('%s is not found in the char 2 phone dict' % word)
         return '{%s}' % phone if phone is not None and random.random() < self._p_phone_sub else word
 
 
