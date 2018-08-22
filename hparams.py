@@ -19,25 +19,36 @@ hparams = tf.contrib.training.HParams(
 
     # Model:
     # TODO: add more configurable hparams
-    outputs_per_step=1,
+    outputs_per_step=1, # # #
 
     # Training:
-    batch_size=64,
+    batch_size=32, # # #
     adam_beta1=0.9,
     adam_beta2=0.999,
-    initial_learning_rate=0.0005,#0.002
+    initial_learning_rate=0.002,#0.002
     decay_learning_rate=True,
-    use_phone_input=False,    # Use CMUDict during training to learn pronunciation of ARPAbet phonemes
+    use_phone_input=False,  # # #   # Use CMUDict during training to learn pronunciation of ARPAbet phonemes
+    per_cen_phone_input=0.0,  # # # #range from 0 to 1, 0--no phone input, 1--all phone input
 
     # Eval:
-    max_iters=400,
+    max_iters=40000,
     griffin_lim_iters=100,
     power=1.5,                            # Power to raise magnitudes to prior to Griffin-Lim
-
 
     # network settings
     embedding_text_channels=256,
     embedding_id_channels=64,
+
+    # input
+    bucket_len=1,
+    eos=True,
+
+    #regularity
+    overwrought=0.0, # 0.0001
+    oneorder_dynamic=0.0, # 0.00002
+    variance_between_row=0.0,
+    alignment_entropy=0.0, # 1 whether apply entropy on alignment
+
 
 )
 
@@ -46,3 +57,19 @@ def hparams_debug_string():
     values = hparams.values()
     hp = ['    %s: %s' % (name, values[name]) for name in sorted(values)]
     return 'Hyperparameters:\n' + '\n'.join(hp)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

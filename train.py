@@ -47,9 +47,6 @@ def train(log_dir, args):
     log(hparams_debug_string())
 
     sequence_to_text = sequence_to_text2
-    hparams.bucket_len = args.bucket_len
-    hparams.eos = args.eos
-    hparams.alignment_entropy = args.alignment_entropy
 
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         # Multi-GPU settings
@@ -74,7 +71,7 @@ def train(log_dir, args):
             log('train data:%s' % args.train_data)
 
             feeder = DataFeeder_tfrecord(hparams, file_list)
-            inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
+            inputs, input_lengths, linear_targets, mel_targets, n_frames, wavs, identities = feeder._get_batch_input()
 
         elif args.data_type == 'npy':
             with open('./train_npy_data_dict.json', 'r') as f:
@@ -88,12 +85,16 @@ def train(log_dir, args):
                 id_num += int(re.findall(pattern, train_data_dict[item])[0])
             log('train data:%s' % args.train_data)
 
-            feeder = DataFeeder_npy(hparams, file_list)
-            inputs, input_lengths, linear_targets, mel_targets, n_frame, wav, identity = feeder._get_batch_input()
+            feeder = DataFeeder_npy(hparams, file_list, coord)
+            inputs = feeder.inputs
+            input_lengths = feeder.input_lengths
+            mel_targets = feeder.mel_targets
+            linear_targets = feeder.linear_targets
+            wavs = feeder.wavs
+            identities = feeder.identities
 
         else:
             raise('not spificied the input data type')
-
 
         # Set up model:
         global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -104,7 +105,7 @@ def train(log_dir, args):
                         models.append(None)
                         models[i] = create_model(args.model, hparams)
                         models[i].initialize(inputs=inputs, input_lengths=input_lengths, mel_targets=mel_targets,
-                                             linear_targets=linear_targets, identity=identity, id_num=id_num)
+                                             linear_targets=linear_targets, identities=identities, id_num=id_num)
                         models[i].add_loss()
                         models[i].add_optimizer(global_step)
                         stats = add_stats(models[i])
@@ -128,30 +129,26 @@ def train(log_dir, args):
                     log('Resuming from checkpoint: %s' % restore_path)
                 else:
                     log('Starting new training run')
-                tf.train.start_queue_runners(sess=sess, coord=coord)
-                feeder.start_threads(sess=sess, coord=coord)
+
+                if args.data_type == 'tfrecord':
+                    tf.train.start_queue_runners(sess=sess, coord=coord)
+                    feeder.start_threads(sess=sess, coord=coord)
+                elif args.data_type == 'npy':
+                    feeder.start_in_session(sess)
+
                 while not coord.should_stop():
                     start_time = time.time()
-                    loss_alignment_entropy = None
-                    if args.alignment_entropy:
-                        step, loss, opt, loss_alignment_entropy = \
-                            sess.run([global_step,
-                                      models[0].loss,
-                                      models[0].optimize,
-                                      models[0].loss_alignment_entropy,
-                                      ])
-                    else:
-                        step, loss, opt = \
-                            sess.run([global_step,
-                                      models[0].loss,
-                                      models[0].optimize,
-                                      ])
+
+                    step, loss, opt, loss_regularity = sess.run([global_step,
+                                                                 models[0].loss,
+                                                                 models[0].optimize,
+                                                                 models[0].loss_regularity,
+                                                                 ])
 
                     time_window.append(time.time() - start_time)
                     loss_window.append(loss)
                     message = 'Step %-7d [%.03f avg_sec/step,  loss=%.05f,  avg_loss=%.05f,  lossw=%.05f]' % (
-                        step, time_window.average, loss, loss_window.average, loss_alignment_entropy if
-                        loss_alignment_entropy else loss)
+                        step, time_window.average, loss, loss_window.average, loss_regularity)
                     log(message)
 
                     # if the gradient seems to explode, then restore to the previous step
@@ -175,8 +172,8 @@ def train(log_dir, args):
                         log('Saving audio and alignment...')
                         input_seq, spectrogram, alignment, wav_original, melspectogram, spec_original, mel_original, \
                         identity2 = sess.run([models[0].inputs[0], models[0].linear_outputs[0], models[0].alignments[0],
-                                              wav[0],models[0].mel_outputs[0], linear_targets[0], mel_targets[0],
-                                              identity[0]])
+                                              wavs[0],models[0].mel_outputs[0], linear_targets[0], mel_targets[0],
+                                              identities[0]])
                         waveform = audio.inv_spectrogram(spectrogram.T)
                         audio.save_wav(waveform, os.path.join(crrt_dir, 'step-%d-audio.wav' % step))
                         audio.save_wav(wav_original, os.path.join(crrt_dir, 'step-%d-audio-original-%d.wav' %
@@ -261,6 +258,7 @@ def train(log_dir, args):
                         with open(path_seq3, 'w') as f:
                             f.write(sequence_to_text(input_seq3))
                         log('Input: %s' % sequence_to_text(input_seq))
+                        log('Input: %s' % str(input_seq))
 
             except Exception as e:
                 log('Exiting due to exception: %s' % e)
@@ -279,20 +277,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_dir', default='./logs/')
     parser.add_argument('--model', default='tacotron')
+    parser.add_argument('--summary_interval', type=int, default=100,
+        help='Steps between running summary ops.')
+    parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
+
     parser.add_argument('--hparams', default='',
         help='Hyperparameter overrides as a comma-separated list of name=value pairs')
     parser.add_argument('--restore_step', type=int, help='Global step to restore from checkpoint.')
-    parser.add_argument('--summary_interval', type=int, default=100,
-        help='Steps between running summary ops.')
     parser.add_argument('--checkpoint_interval', type=int, default=1000,
-        help='Steps between writing checkpoints.')
-    parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
+                        help='Steps between writing checkpoints.')
     parser.add_argument('--GPUs_id', default='[0]', help='The GPUs\' id list that will be used. Default is 0')
     parser.add_argument('--description', default=None, help='description of the model')
-    parser.add_argument('--bucket_len', type=int, default=1, help='bucket_len')
-    parser.add_argument('--eos', type=_str_to_bool, default='True', help='whether ues eos in the input sequence')
-    parser.add_argument('--train_data', type=str, default='THCHS', help='training datas to be used')
-    parser.add_argument('--alignment_entropy', type=float, default=0, help='whether apply entropy on alignment')
+    parser.add_argument('--train_data', type=str, default='THCHS', help='training datas to be used, comma-separated')
     parser.add_argument('--data_type', type=str, default='npy', help='tfrecord or npy')
 
     args = parser.parse_args()

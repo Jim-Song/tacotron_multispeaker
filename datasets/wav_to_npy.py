@@ -36,7 +36,7 @@ def _process_utterance(wav_path, text, id):
 def write_worker(q_out, npy_dir, data_name, id_num):
     pre_time = time.time()
     count = 1
-    with open(os.path.join('./datasets', 'npy_input_' + data_name + '_id_num_' + str(id_num) + '_.txt'), 'w') as f:
+    with open(os.path.join('./datasets', 'npy_input_' + data_name + '_id_num_' + str(id_num) + '.txt'), 'w') as f:
         while True:
             deq = q_out.get()
             if deq is None:
@@ -76,7 +76,7 @@ def read_worker(q_in, q_out):
 
 
 def wav_to_npy_read_from_text(args, text_path, data_name, id_num):
-    npy_dir = os.path.join(args.output, "npy_tacotron_" + data_name + '_id_num' + str(id_num))
+    npy_dir = os.path.join(args.output, "npy_tacotron_" + data_name + '_id_num_' + str(id_num))
     os.makedirs(npy_dir, exist_ok=True)
 
     q_in = [multiprocessing.Queue(1024) for i in range(args.num_workers)]
@@ -104,7 +104,7 @@ def wav_to_npy_read_from_text(args, text_path, data_name, id_num):
             train_data_dict = json.load(f)
     except:
         train_data_dict = {}
-    train_data_dict[data_name] = os.path.join('./datasets', 'npy_input_' + data_name + '_id_num_' + str(id_num) + '_.txt')
+    train_data_dict[data_name] = os.path.join('./datasets', 'npy_input_' + data_name + '_id_num_' + str(id_num) + '.txt')
     with open('./train_npy_data_dict.json', 'w') as f:
         json.dump(train_data_dict, f)
 

@@ -15,7 +15,7 @@ class Tacotron():
         self._hparams = hparams
 
 
-    def initialize(self, inputs, input_lengths, mel_targets=None, linear_targets=None, identity=None, id_num=0):
+    def initialize(self, inputs, input_lengths, mel_targets=None, linear_targets=None, identities=None, id_num=0):
         '''Initializes the model for inference.
 
         Sets "mel_outputs", "linear_outputs", and "alignments" fields.
@@ -45,11 +45,11 @@ class Tacotron():
 
             embedded_text_inputs = tf.nn.embedding_lookup(embedding_text_table, inputs)  # [N, T_in, 256]
 
-            if identity is not None:
+            if identities is not None:
                 embedding_id_table = tf.get_variable('embedding_id', [id_num, hp.embedding_id_channels],
                                                      dtype=tf.float32,
                                                      initializer=tf.truncated_normal_initializer(stddev=0.5))
-                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identity) # [N, 64]
+                embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identities) # [N, 64]
                 embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)                  # [N, 1, 32]
                 embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1], name=None) # [N, T_in, 32]
                 embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 2) # [N, T_in, 288]
@@ -106,7 +106,7 @@ class Tacotron():
             self.mel_outputs = mel_outputs
             self.linear_outputs = linear_outputs
             self.alignments = alignments
-            self.identity = identity
+            self.identities = identities
             self.mel_targets = mel_targets
             self.linear_targets = linear_targets
             log('Initialized Tacotron model. Dimensions: ')
@@ -133,23 +133,37 @@ class Tacotron():
             self.linear_loss = 0.5 * tf.reduce_mean(l1) + 0.5 * tf.reduce_mean(l1[:,:,0:n_priority_freq])
             self.loss = self.mel_loss + self.linear_loss
             self.loss = self.loss
-            if self._hparams.alignment_entropy:
+            self.loss_regularity = tf.constant(0, dtype=tf.float32)
+            #add some regularization to the loss to help converge
+            if self._hparams.overwrought or self._hparams.oneorder_dynamic or self._hparams.variance_between_row or \
+                    self._hparams.alignment_entropy :
                 pr = tf.nn.softmax(self.alignments, 2)
                 pr_slice1 = tf.slice(pr, [0, 0, 0], [tf.shape(pr)[0], tf.shape(pr)[1], tf.shape(pr)[2] - 1])
                 pr_slice2 = tf.slice(pr, [0, 0, 1], [tf.shape(pr)[0], tf.shape(pr)[1], tf.shape(pr)[2] - 1])
-                lg_pr = tf.log(pr)
-                self.loss_alignment_entropy = -1 * tf.reduce_mean(pr * lg_pr)
 
-                pr_slice_last_word = tf.slice(pr, [0, tf.shape(pr)[1] - 2, 0], [tf.shape(pr)[0], 2, 20])
-                loss_tmp = tf.reduce_sum(pr_slice_last_word) * 0.0001
+                if self._hparams.alignment_entropy:
+                    lg_pr = tf.log(pr)
+                    self.loss_regularity += -1 * self._hparams.alignment_entropy * tf.reduce_mean(pr * lg_pr)
 
-                self.loss += self._hparams.alignment_entropy * (self.loss_alignment_entropy +
-                              0.00002 * tf.reduce_sum(tf.abs(pr_slice1 - pr_slice2)) + loss_tmp)
+                if self._hparams.oneorder_dynamic:
+                    loss_oneorder_dynamic = tf.reduce_sum(tf.abs(pr_slice1 - pr_slice2))
+                    self.loss_regularity += self._hparams.oneorder_dynamic * loss_oneorder_dynamic
 
+                if self._hparams.overwrought:
+                    pr_slice_last_word = tf.slice(pr, [0, tf.shape(pr)[1] - 2, 0], [tf.shape(pr)[0], 2, 20])
+                    loss_overwrought = tf.reduce_sum(pr_slice_last_word)
+                    self.loss_regularity += self._hparams.overwrought * loss_overwrought
 
+                if self._hparams.variance_between_row:
+                    sum_row = tf.reduce_sum(self.alignments, axis=2)
+                    mean_row = tf.reduce_mean(sum_row, axis=1)
+                    mean_row = tf.expand_dims(mean_row, 1)
+                    mean_row = tf.tile(mean_row, [1, tf.shape(sum_row)[1]], name=None)
+                    variance_batch = (mean_row-sum_row) * (mean_row-sum_row)
+                    loss_variance_between_row = tf.reduce_sum(variance_batch)
+                    self.loss_regularity += self._hparams.variance_between_row * loss_variance_between_row
 
-
-
+                self.loss += self._hparams.alignment_entropy * self.loss_regularity
 
 
     def add_optimizer(self, global_step):
@@ -178,6 +192,6 @@ class Tacotron():
 
 def _learning_rate_decay(init_lr, global_step):
     # Noam scheme from tensor2tensor:
-    warmup_steps = 40000.0
+    warmup_steps = 4000.0
     step = tf.cast(global_step + 1, dtype=tf.float32)
     return init_lr * warmup_steps**0.5 * tf.minimum(step * warmup_steps**-1.5, step**-0.5)

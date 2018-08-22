@@ -17,7 +17,7 @@ _arpabet = ['@' + s for s in cmudict.valid_symbols]
 # Export all symbols:
 symbols = [_pad, _eos] + list(_characters) + _arpabet
 
-with open('./datasets/character_list.json', 'r') as f:
+with open('./datasets/normal.json', 'r') as f:
     _characters2 = json.load(f)
 
 symbols2 = [_pad, _eos] + _characters2

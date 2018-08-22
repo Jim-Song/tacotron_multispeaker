@@ -15,7 +15,7 @@ import multiprocessing
 
 
 
-with open('./datasets/phone+character+alphabet+punctuation_list.json', 'r') as f:
+with open('./datasets/normal.json', 'r') as f:
     _symbols = json.load(f)
 
 
