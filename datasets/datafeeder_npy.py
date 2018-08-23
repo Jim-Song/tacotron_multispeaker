@@ -39,7 +39,7 @@ class DataFeeder(threading.Thread):
                     crrt_metadata.append(line)
                 id_num += id_num_crrt + 1
                 self._metadata = self._metadata + crrt_metadata
-                log('No. of samples from %s is %d' % (file, len(crrt_metadata)))
+                log('No. %d of samples from %s' % (len(crrt_metadata), file))
         random.shuffle(self._metadata)
 
 
@@ -133,11 +133,11 @@ class DataFeeder(threading.Thread):
             for word in text.split(' '):
                 exist_alpha = False
                 for item in word:
-                    if item.isalpha():
+                    if is_alphabet(item):
                         exist_alpha = True
                         break
                 phone = self._maybe_get_arpabet(word)
-                if text2 is not None and exist_alpha:
+                if not text2 and exist_alpha:
                     text2 = text2 + ' '
                 text2 += phone
             text = text2
@@ -192,3 +192,28 @@ def _pad_target(t, length):
 def _round_up(x, multiple):
     remainder = x % multiple
     return x if remainder == 0 else x + multiple - remainder
+
+
+def is_chinese(uchar):
+    """判断一个unicode是否是汉字"""
+    if uchar >= u'\u4e00' and uchar<=u'\u9fa5':
+        return True
+    else:
+        return False
+
+
+def is_number(uchar):
+    """判断一个unicode是否是数字"""
+    if uchar >= u'\u0030' and uchar<=u'\u0039':
+        return True
+    else:
+        return False
+
+
+def is_alphabet(uchar):
+    """判断一个unicode是否是英文字母"""
+    if (uchar >= u'\u0041' and uchar<=u'\u005a') or (uchar >= u'\u0061' and uchar<=u'\u007a'):
+        return True
+    else:
+        return False
+

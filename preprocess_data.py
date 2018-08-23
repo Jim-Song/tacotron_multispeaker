@@ -182,6 +182,6 @@ recommended command
 python3 preprocess_data.py --data_path ../data/THCHS/ --dataset THCHS --output /ssd1 --data_type npy
 python3 preprocess_data.py --data_path ../data/data_aishell/ --dataset aishell --output /ssd1 --data_type npy
 python3 preprocess_data.py --data_path ../data/LJSpeech-1.0/ --dataset ljspeech --output /ssd1 --data_type npy
-python3 preprocess_data.py --data_path ../data/vctk-Corpus/ --dataset vctk --output /ssd1 --data_type npy
+python3 preprocess_data.py --data_path ../data/VCTK-Corpus/ --dataset vctk --output /ssd1 --data_type npy
 
 '''

@@ -45,7 +45,7 @@ class Tacotron():
 
             embedded_text_inputs = tf.nn.embedding_lookup(embedding_text_table, inputs)  # [N, T_in, 256]
 
-            if identities is not None:
+            if identities is not None and id_num > 1:
                 embedding_id_table = tf.get_variable('embedding_id', [id_num, hp.embedding_id_channels],
                                                      dtype=tf.float32,
                                                      initializer=tf.truncated_normal_initializer(stddev=0.5))
@@ -53,8 +53,10 @@ class Tacotron():
                 embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)                  # [N, 1, 32]
                 embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1], name=None) # [N, T_in, 32]
                 embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 2) # [N, T_in, 288]
+                log('multi-speaker')
             else:
                 embedded_inputs = embedded_text_inputs
+                log('single speaker')
 
             # Encoder
             prenet_outputs = prenet(embedded_inputs, is_training)          # [N, T_in, 128]
@@ -150,7 +152,8 @@ class Tacotron():
                     self.loss_regularity += self._hparams.oneorder_dynamic * loss_oneorder_dynamic
 
                 if self._hparams.overwrought:
-                    pr_slice_last_word = tf.slice(pr, [0, tf.shape(pr)[1] - 2, 0], [tf.shape(pr)[0], 2, 20])
+                    end_p = tf.minimum(tf.to_int32((tf.shape(pr)[2] + tf.shape(pr)[2] % 3) / 3) ,50)
+                    pr_slice_last_word = tf.slice(pr, [0, tf.shape(pr)[1] - 3, 0], [tf.shape(pr)[0], 3, end_p])
                     loss_overwrought = tf.reduce_sum(pr_slice_last_word)
                     self.loss_regularity += self._hparams.overwrought * loss_overwrought
 
