@@ -18,11 +18,12 @@ class Synthesizer:
         identity = tf.placeholder(tf.int32, [1], 'identity')
         with tf.variable_scope('model') as scope:
             hparams.chinese_symbol = True
+            hparams.max_iters = 400
             self.model = create_model(model_name, hparams)
             reader2 = pywrap_tensorflow.NewCheckpointReader(checkpoint_path)
             var_to_shape_map = reader2.get_variable_to_shape_map()
             id_num = var_to_shape_map['model/inference/embedding_id'][0]
-            self.model.initialize(inputs, input_lengths, identity=identity, id_num=id_num)
+            self.model.initialize(inputs, input_lengths, identities=identity, id_num=id_num)
             self.wav_output = audio.inv_spectrogram_tensorflow(self.model.linear_outputs[0])
             self.alignment = self.model.alignments[0]
 
@@ -41,7 +42,7 @@ class Synthesizer:
         feed_dict = {
             self.model.inputs: [np.asarray(seq, dtype=np.int32)],
             self.model.input_lengths: np.asarray([len(seq)], dtype=np.int32),
-            self.model.identity: np.asarray([identity], dtype=np.int32),
+            self.model.identities: np.asarray([identity], dtype=np.int32),
         }
         wav, alignment = self.session.run([self.wav_output, self.alignment], feed_dict=feed_dict)
         if path_align is not None:

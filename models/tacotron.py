@@ -154,7 +154,9 @@ class Tacotron():
                 if self._hparams.overwrought:
                     end_p = tf.minimum(tf.to_int32((tf.shape(pr)[2] + tf.shape(pr)[2] % 3) / 3) ,50)
                     pr_slice_last_word = tf.slice(pr, [0, tf.shape(pr)[1] - 3, 0], [tf.shape(pr)[0], 3, end_p])
-                    loss_overwrought = tf.reduce_sum(pr_slice_last_word)
+                    pr_slice_first_word = tf.slice(pr, [0, 0, 40], [tf.shape(pr)[0], 1, tf.shape(pr)[2] - 41])
+
+                    loss_overwrought = tf.reduce_sum(pr_slice_first_word)
                     self.loss_regularity += self._hparams.overwrought * loss_overwrought
 
                 if self._hparams.variance_between_row:

@@ -31,7 +31,7 @@ hparams = tf.contrib.training.HParams(
     per_cen_phone_input=0.0,  # # # #range from 0 to 1, 0--no phone input, 1--all phone input
 
     # Eval:
-    max_iters=40000,
+    max_iters=2000,
     griffin_lim_iters=100,
     power=1.5,                            # Power to raise magnitudes to prior to Griffin-Lim
 
